@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Fluid Comparison</title>
+    <script src="https://unpkg.com/jspsych@8.3.0"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-preload@2.1.0"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-instructions@2.1.0"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-html-button-response@2.1.0"></script>
+    <script src="https://unpkg.com/@jspsych/extension-pipe@0.2.0"></script>
+    <link href="https://unpkg.com/jspsych@8.3.0/css/jspsych.css" rel="stylesheet">
+    <style>
+      .pair { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+      .pair video { width: 45vw; max-width: 640px; background: #000; }
+    </style>
+  </head>
+  <body></body>
+  <script>
+    const DATAPIPE_ID = 'f8ABngBRajwj';
+    const NUM_PAIRS = 5;
+
+    const SAVING = DATAPIPE_ID !== 'REPLACE_ME';
+
+    const PAIRS = [];
+    for(let i = 1; i <= NUM_PAIRS; i++) {
+      PAIRS.push({
+        pair_id: `pair${i}`,
+        original: `videos/pair${i}_original.mp4`,
+        upsampled: `videos/pair${i}_upsampled.mp4`,
+      });
+    }
+
+    const jsPsych = initJsPsych({
+      show_progress_bar: true,
+      extensions: [{
+        type: jsPsychExtensionPipe,
+        params: {
+          experiment_id: DATAPIPE_ID,
+          enabled: SAVING,
+          filename: () => `${participantId}.csv`,
+          data_string: () => jsPsych.data.get().filter({ task: '2afc' }).csv(),
+          done_message: '<p>Thank you! Your responses have been saved.</p><p>You can close this tab.</p>',
+          on_save: (result) => {
+            if(!result.ok) {
+              document.body.innerHTML = '<p>Sorry, your responses could not be saved. Please contact mta9404@nyu.edu.</p>';
+            }
+          }
+        }
+      }],
+      on_finish: () => {
+        if(SAVING) return;
+        const trials = jsPsych.data.get().filter({ task: '2afc' });
+        document.body.innerHTML = 
+          `<p>Test mode (no DataPipe ID set). Upsampled chosen on ` +
+          `${(trials.select('chose_upsampled').mean() * 100).toFixed(0)}% of trials.</p>` +
+          `<pre>${trials.csv()}</pre>`;
+      },
+    });
+
+    const participantId = jsPsych.randomization.randomID(10);
+    jsPsych.data.addProperties({ participant_id: participantId});
+
+    const preload = {
+      type: jsPsychPreload,
+      video: PAIRS.flatMap((p) => [p.original, p.upsampled]),
+      message: '<p>Loading videos...</p>',
+    };
+
+    const instructions = {
+      type: jsPsychInstructions,
+      pages: [
+        `<p>You will see ${NUM_PAIRS} pairs of short videos, side by side.</p>` +
+        '<p>For each pair, click the button under the video you think looks better.</p>' +
+        '<p>There are no right or wrong answers. A laptop or desktop screen works best.</p>',
+      ],
+      show_clickable_nav: true,
+      button_label_next: 'Start',
+    };
+
+    const trial = {
+      type: jsPsychHtmlButtonResponse,
+      stimulus: () => `<div class="pair">
+        <video src="${jsPsych.evaluateTimelineVariable('left_src')}" autoplay loop muted playsinline></video>
+        <video src="${jsPsych.evaluateTimelineVariable('right_src')}" autoplay loop muted playsinline></video>
+        </div>`,
+      choices: ['Left looks better', 'Right looks better'],
+      data: {
+        task: '2afc',
+        pair_id: jsPsych.timelineVariable('pair_id'),
+        upsampled_side: jsPsych.timelineVariable('upsampled_side'),
+        left_video: jsPsych.timelineVariable('left_src'),
+        right_video: jsPsych.timelineVariable('right_src'),
+      },
+      on_finish: (data) => {
+        delete data.stimulus; 
+        data.chose_side = data.response === 0 ? 'left' : 'right';
+        data.chose_upsampled = data.chose_side === data.upsampled_side ? 1 : 0;
+      },
+  };
+
+  const trialVariables = PAIRS.map((p) => {
+    const upsampledLeft = Math.random() < 0.5;
+    return {
+      pair_id: p.pair_id,
+      upsampled_side: upsampledLeft ? 'left' : 'right',
+      left_src: upsampledLeft ? p.upsampled : p.original,
+      right_src: upsampledLeft ? p.original : p.upsampled,
+    };
+  });
+
+  const trials = {
+    timeline: [trial],
+    timeline_variables: trialVariables,
+    randomize_order: true,
+  };
+
+  jsPsych.run([preload, instructions, trials]);
+  </script>
+</html>
