@@ -13,15 +13,71 @@
     <style>
       .pair { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
       .pair video { width: 45vw; max-width: 640px; background: #000; }
+      .consent { max-width: 760px; margin: 32px auto; padding: 0 16px; line-height: 1.5; text-align: left; }
+      .consent h1 { font-size: 1.4em; }
+      .consent h2 { font-size: 1.05em; margin-top: 1.2em; }
+      .consent .btns { display: flex; gap: 12px; margin: 24px 0 48px; }
     </style>
   </head>
-  <body></body>
+  <body>
+    <!-- Consent is plain HTML BEFORE jsPsych starts: declining records and sends nothing. -->
+    <div class="consent" id="consent">
+      <h1>Informed Consent to Participate in a Research Study</h1>
+      <p><b>Study title:</b> Perceived Realism of Computer-Generated Water Animations<br>
+         <b>Principal investigator:</b> Gizem Kayar, New York University<br>
+         <b>IRB study number:</b> IRB-FY2027-12013</p>
+      <p>You are invited to take part in a research study conducted at New York University. Please read the
+         information below carefully before deciding whether to participate.</p>
+      <h2>Purpose of the study</h2>
+      <p>The purpose of this study is to understand how people judge the visual realism of computer-generated
+         animations of water. Your responses will help researchers compare different methods for producing such
+         animations.</p>
+      <h2>Procedures</h2>
+      <p>If you agree to participate, you will be shown a series of short, silent video clips of water, each less than
+         10 seconds long. In each trial you will compare two clips and select the one that better answers the question
+         on the screen; in some trials, a third clip is shown as a reference. At the end, you may optionally indicate
+         your level of experience with 3D computer graphics. The study takes approximately 10 minutes to complete.</p>
+      <h2>Risks and discomforts</h2>
+      <p>There are no known risks associated with this study beyond those encountered in ordinary daily computer use.
+         The videos do not contain flashing or strobing images.</p>
+      <h2>Benefits</h2>
+      <p>There is no direct benefit to you from participating. Your participation will contribute to research on
+         realistic real-time computer graphics.</p>
+      <h2>Compensation</h2>
+      <p>You will not receive any payment or other compensation for participating in this study.</p>
+      <h2>Confidentiality</h2>
+      <p>This study does not collect any information that could identify you. You will not be asked for your name,
+         email address or any other personal details, and your IP address is not recorded. Your responses are stored
+         under a randomly generated code, together with response times and your browser window size. Data are
+         transmitted only if you complete the study, and are stored securely on Google Drive. Results
+         will be reported only in aggregate form.</p>
+      <h2>Voluntary participation</h2>
+      <p>Your participation is entirely voluntary. You may decline to participate, or withdraw at any time without
+         penalty, simply by closing this browser tab. If you withdraw before the end of the study, none of your
+         responses will be recorded. Because no identifying information is collected, responses cannot be withdrawn
+         after they have been submitted.</p>
+      <h2>Eligibility</h2>
+      <p>You must be at least 18 years of age to participate.</p>
+      <h2>Contact information</h2>
+      <p>If you have questions about this study, please contact mo2273@nyu.edu.
+         If you have questions about your rights as a research participant, you may contact the New York University
+         Institutional Review Board at ask.humansubjects@nyu.edu, (212) 998-4808.</p>
+      <p>You may print or save a copy of this page for your records.</p>
+      <h2>Statement of consent</h2>
+      <p><b>By clicking "Yes, I agree" below, you confirm that you are at least 18 years of age, that you have read and
+         understood the information above, and that you voluntarily agree to participate in this study.</b></p>
+      <div class="btns">
+        <button class="jspsych-btn" id="agree">Yes, I agree</button>
+        <button class="jspsych-btn" id="decline">No, I do not agree</button>
+      </div>
+    </div>
+  </body>
   <script>
     const DATAPIPE_ID = 'f8ABngBRajwj';
     const NUM_PAIRS = 5;
-
+ 
     const SAVING = DATAPIPE_ID !== 'REPLACE_ME';
-
+ 
     const PAIRS = [];
     for(let i = 1; i <= NUM_PAIRS; i++) {
       PAIRS.push({
@@ -30,7 +86,7 @@
         upsampled: `videos/pair${i}_upsampled.mp4`,
       });
     }
-
+ 
     const jsPsych = initJsPsych({
       show_progress_bar: true,
       extensions: [{
@@ -38,6 +94,7 @@
         params: {
           experiment_id: DATAPIPE_ID,
           enabled: SAVING,
+          stream: false, // the consent form says data are sent only if the study is completed
           filename: () => `${participantId}.csv`,
           data_string: () => jsPsych.data.get().filter({ task: '2afc' }).csv(),
           done_message: '<p>Thank you! Your responses have been saved.</p><p>You can close this tab.</p>',
@@ -57,16 +114,16 @@
           `<pre>${trials.csv()}</pre>`;
       },
     });
-
+ 
     const participantId = jsPsych.randomization.randomID(10);
     jsPsych.data.addProperties({ participant_id: participantId});
-
+ 
     const preload = {
       type: jsPsychPreload,
       video: PAIRS.flatMap((p) => [p.original, p.upsampled]),
       message: '<p>Loading videos...</p>',
     };
-
+ 
     const instructions = {
       type: jsPsychInstructions,
       pages: [
@@ -77,7 +134,7 @@
       show_clickable_nav: true,
       button_label_next: 'Start',
     };
-
+ 
     const trial = {
       type: jsPsychHtmlButtonResponse,
       stimulus: () => `<div class="pair">
@@ -98,7 +155,7 @@
         data.chose_upsampled = data.chose_side === data.upsampled_side ? 1 : 0;
       },
   };
-
+ 
   const trialVariables = PAIRS.map((p) => {
     const upsampledLeft = Math.random() < 0.5;
     return {
@@ -108,13 +165,22 @@
       right_src: upsampledLeft ? p.original : p.upsampled,
     };
   });
-
+ 
   const trials = {
     timeline: [trial],
     timeline_variables: trialVariables,
     randomize_order: true,
   };
-
-  jsPsych.run([preload, instructions, trials]);
+ 
+  // Nothing runs or records until the participant agrees.
+  document.getElementById('decline').onclick = () => {
+    document.body.innerHTML = '<div class="consent"><p>You chose not to take part. Nothing was recorded. ' +
+                              'You can close this tab.</p></div>';
+  };
+  document.getElementById('agree').onclick = () => {
+    document.getElementById('consent').remove();
+    jsPsych.run([preload, instructions, trials]);
+  };
   </script>
 </html>
+ 
